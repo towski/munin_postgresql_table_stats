@@ -1,0 +1,74 @@
+#!/usr/bin/env perl
+
+# postgres_queries3: see stats on number of rows
+# read, inserted, updated and deleted on a per table basis
+#
+# Author:
+#    Samuel Smith leon36 <snail> gmail <dot> com
+#
+# Created:
+#    20140701
+#
+# Usage:
+#    Place in /etc/munin/plugins/ (or link it there using ln -s)
+#    Place table names after '_' and delimit with '-'
+#    EX: postgres_queries3_table1-table2-table3
+#
+# Parameters:
+#    config   (required)
+#    conf:
+#    [postgres_*]
+#    user postgres
+#
+#
+# General info:
+#    Require permission for database access and read (no writes are processed).
+#    Recommended user is PostgreSQL database owner.
+#    On debian systems install libipc-run3-perl
+#
+# Log info:
+# 20140701 - Initial
+# 20140924 -
+#	-ignore internal pg tables
+#	-missing stuff in config
+
+use strict;
+use IPC::Run3 qw( run3 );
+
+if( defined $ARGV[0] and $ARGV[0] eq "config" ){
+print qq/graph_title Postgres tables
+graph_category PostgreSQL
+graph_info Shows number of select, insert, update and delete queries
+total_tables.label tables
+total_tables.info Number of tables
+total_tables.type DERIVE
+/;
+exit;
+}
+
+$0 =~ /postgres_setup_db_(.*)/;
+
+my @dbs = split(/-/,$1);
+
+my @out;
+my $query = \<<EOF;
+select relname
+from pg_stat_all_tables where relname not like 'pg_%' and relname not like 'sql_%' and relname not like 'spatial_ref_sys';
+EOF
+
+my $index = 0;
+
+foreach my $db (@dbs){
+	my @out;
+
+	run3( "psql -At $db", $query, \@out);
+
+	foreach my $line (@out){
+    chomp $line;
+    symlink "/usr/share/munin/plugins/postgres_table_stats_insert_rows_", "/etc/munin/plugins/postgres_table_stats_insert_rows_$line";
+    symlink "/usr/share/munin/plugins/postgres_table_stats_sel_rows_", "/etc/munin/plugins/postgres_table_stats_sel_rows_$line";
+    $index++;
+	}
+}
+
+print "total_tables.value $index \n";

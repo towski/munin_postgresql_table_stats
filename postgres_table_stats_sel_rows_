@@ -1,0 +1,84 @@
+#!/usr/bin/env perl
+
+# postgres_queries3: see stats on number of rows
+# read, inserted, updated and deleted on a per table basis
+#
+# Author:
+#    Samuel Smith leon36 <snail> gmail <dot> com
+#
+# Created:
+#    20140701
+#
+# Usage:
+#    Place in /etc/munin/plugins/ (or link it there using ln -s)
+#    Place table names after '_' and delimit with '-'
+#    EX: postgres_queries3_table1-table2-table3
+#
+# Parameters:
+#    config   (required)
+#    conf:
+#    [postgres_*]
+#    user postgres
+#
+#
+# General info:
+#    Require permission for database access and read (no writes are processed).
+#    Recommended user is PostgreSQL database owner.
+#    On debian systems install libipc-run3-perl
+#
+# Log info:
+# 20140701 - Initial
+# 20140924 -
+#	-ignore internal pg tables
+#	-missing stuff in config
+
+use strict;
+use IPC::Run3 qw( run3 );
+
+$0 =~ /postgres_table_stats_sel_rows_(.*)/;
+
+my @tables = split(/-/,$1);
+my $tablename = $tables[0];
+
+if( defined $ARGV[0] and $ARGV[0] eq "config" ){
+print qq/graph_title Postgres selects for $tablename
+graph_args --base 1000 -l 0 -r
+graph_category Reads
+graph_info Shows number of selects
+sel_seq.label s_selects
+sel_seq.info Sequential selects on all tables
+sel_seq.type DERIVE
+sel_seq_rows.label s_select rows
+sel_seq_rows.info Rows returned from sequential selects
+sel_seq_rows.type DERIVE
+sel_idx.label i_selects
+sel_idx.info Sequential selects on all indexes
+sel_idx.type DERIVE
+sel_idx_rows.label i_select rows
+sel_idx_rows.info Rows returned form index selects
+sel_idx_rows.type DERIVE
+/;
+exit;
+}
+
+my @out;
+my $query = \<<EOF;
+select
+pg_stat_all_tables.seq_scan as sel_seq ,
+pg_stat_all_tables.seq_tup_read as sel_seq_rows,
+pg_stat_all_tables.idx_scan as sel_idx,
+pg_stat_all_tables.idx_tup_fetch as sel_idx_rows
+from pg_stat_all_tables where pg_stat_all_tables.relname = '$tablename';
+EOF
+
+run3( "psql -A homebase", $query, \@out);
+
+my @tablekeys = split /\|/, $out[0];
+my @values = split /\|/, $out[1];
+my $index = 0;
+foreach my $key (@tablekeys){
+  chomp(@values[$index]);
+  chomp($key);
+  print "$key.value @values[$index] \n";
+  $index++;
+}

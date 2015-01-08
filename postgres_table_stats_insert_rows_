@@ -1,0 +1,80 @@
+#!/usr/bin/env perl
+
+# postgres_queries3: see stats on number of rows
+# read, inserted, updated and deleted on a per table basis
+#
+# Author:
+#    Samuel Smith leon36 <snail> gmail <dot> com
+#
+# Created:
+#    20140701
+#
+# Usage:
+#    Place in /etc/munin/plugins/ (or link it there using ln -s)
+#    Place table names after '_' and delimit with '-'
+#    EX: postgres_queries3_table1-table2-table3
+#
+# Parameters:
+#    config   (required)
+#    conf:
+#    [postgres_*]
+#    user postgres
+#
+#
+# General info:
+#    Require permission for database access and read (no writes are processed).
+#    Recommended user is PostgreSQL database owner.
+#    On debian systems install libipc-run3-perl
+#
+# Log info:
+# 20140701 - Initial
+# 20140924 -
+#	-ignore internal pg tables
+#	-missing stuff in config
+
+use strict;
+use IPC::Run3 qw( run3 );
+
+$0 =~ /postgres_table_stats_insert_rows_(.*)/;
+
+my @tables = split(/-/,$1);
+my $tablename = $tables[0];
+
+if( defined $ARGV[0] and $ARGV[0] eq "config" ){
+print qq/graph_title Postgres Queries for $tablename
+graph_args --base 1000 -l 0 -r
+graph_category PostgreSQL
+graph_info Shows number of insert, update and delete queries
+inserts.label inserts
+inserts.info Rows inserted on all tables
+inserts.type DERIVE
+updates.label updates
+updates.info Rows updated on all tables
+updates.type DERIVE
+deletes.label deletes
+deletes.info Rows deleted from all tables
+deletes.type DERIVE
+/;
+exit;
+}
+
+my @out;
+my $query = \<<EOF;
+select
+pg_stat_all_tables.n_tup_ins as inserts,
+pg_stat_all_tables.n_tup_upd as updates,
+pg_stat_all_tables.n_tup_del as deletes
+from pg_stat_all_tables where pg_stat_all_tables.relname = '$tablename';
+EOF
+
+run3( "psql -A homebase", $query, \@out);
+
+my @tablekeys = split /\|/, $out[0];
+my @values = split /\|/, $out[1];
+my $index = 0;
+foreach my $key (@tablekeys){
+  chomp(@values[$index]);
+  chomp($key);
+  print "$key.value @values[$index] \n";
+  $index++;
+}
