@@ -6,9 +6,11 @@ if you link the postgres_setup_db_[database] it will setup select and insert mun
 
 requires a file in /etc/munin/plugin-conf.d/<any filename> with your postgres credentials:
 
+```
 [postgres_*]
    env.PGUSER user
    env.PGHOST host
    env.PGPASSWORD password
    env.PGPORT port
    env.PGDATABASE database
+```
